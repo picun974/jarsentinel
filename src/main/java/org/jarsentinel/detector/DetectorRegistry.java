@@ -25,6 +25,7 @@ public class DetectorRegistry {
         register(new ReflectionAbuseDetector());
         register(new ObfuscatedStringDetector());
         register(new MinecraftPayloadDetector());
+        register(new HwidAntiAnalysisDetector());
     }
 
     public void register(Detector detector) {

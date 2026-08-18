@@ -7,6 +7,7 @@ import org.jarsentinel.detector.DetectorRegistry;
 import org.jarsentinel.detector.impl.*;
 import org.jarsentinel.model.Finding;
 import org.jarsentinel.model.Severity;
+import org.jarsentinel.model.Verdict;
 import org.jarsentinel.report.JsonReporter;
 import org.jarsentinel.report.MarkdownReporter;
 import org.junit.jupiter.api.BeforeEach;
@@ -17,7 +18,6 @@ import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.ClassNode;
 
-import java.io.ByteArrayOutputStream;
 import java.io.FileOutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -37,7 +37,7 @@ public class JarScannerTest implements Opcodes {
     }
 
     @Test
-    public void testCleanClassYieldsNoFindings() {
+    public void testCleanClassYieldsNoFindingsAndCleanVerdict() {
         ClassNode cleanClass = createCleanClassNode();
         ScanContext context = new ScanContext(Path.of("test.jar"), Severity.INFO, true);
 
@@ -46,6 +46,8 @@ public class JarScannerTest implements Opcodes {
         }
 
         assertTrue(context.getFindings().isEmpty(), "Clean class should produce no security findings");
+        ScanResult result = ScanResult.create(Path.of("test.jar"), 1, 10, context.getFindings());
+        assertEquals(Verdict.CLEAN, result.verdict());
     }
 
     @Test
@@ -58,6 +60,22 @@ public class JarScannerTest implements Opcodes {
 
         assertFalse(context.getFindings().isEmpty(), "Stealer path should trigger finding");
         assertTrue(context.getFindings().stream().anyMatch(f -> f.severity() == Severity.CRITICAL));
+
+        ScanResult result = ScanResult.create(Path.of("stealer.jar"), 1, 10, context.getFindings());
+        assertEquals(Verdict.MALICIOUS, result.verdict());
+        assertFalse(result.highlights().isEmpty());
+    }
+
+    @Test
+    public void testHwidAndAntiDebugDetection() {
+        ClassNode hwidNode = createHwidClassNode();
+        ScanContext context = new ScanContext(Path.of("hwid.jar"), Severity.INFO, true);
+
+        HwidAntiAnalysisDetector detector = new HwidAntiAnalysisDetector();
+        detector.scanClass(hwidNode, context);
+
+        assertFalse(context.getFindings().isEmpty(), "HWID wmic command should trigger finding");
+        assertTrue(context.getFindings().stream().anyMatch(f -> f.title().contains("HWID")));
     }
 
     @Test
@@ -119,15 +137,17 @@ public class JarScannerTest implements Opcodes {
         ScanResult result = results.get(0);
         assertEquals(1, result.totalClassesScanned());
         assertFalse(result.findings().isEmpty());
+        assertEquals(Verdict.MALICIOUS, result.verdict());
 
         // Test JSON & Markdown reporting
         JsonReporter jsonReporter = new JsonReporter();
         String json = jsonReporter.toJson(results);
-        assertTrue(json.contains("\"critical\":"));
+        assertTrue(json.contains("\"verdict\": \"MALICIOUS\""));
 
         MarkdownReporter mdReporter = new MarkdownReporter();
         String md = mdReporter.toMarkdown(results);
         assertTrue(md.contains("JarSentinel Security Analysis Report"));
+        assertTrue(md.contains("MALICIOUS / HIGH RISK"));
     }
 
     private ClassNode createCleanClassNode() {
@@ -152,6 +172,22 @@ public class JarScannerTest implements Opcodes {
         MethodVisitor mv = cw.visitMethod(ACC_PUBLIC, "steal", "()V", null, null);
         mv.visitCode();
         mv.visitLdcInsn("AppData/Roaming/discord/Local Storage/leveldb");
+        mv.visitInsn(POP);
+        mv.visitInsn(RETURN);
+        mv.visitMaxs(1, 1);
+        mv.visitEnd();
+        cw.visitEnd();
+
+        return toClassNode(cw.toByteArray());
+    }
+
+    private ClassNode createHwidClassNode() {
+        ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES);
+        cw.visit(V17, ACC_PUBLIC, "com/example/HwidChecker", null, "java/lang/Object", null);
+
+        MethodVisitor mv = cw.visitMethod(ACC_PUBLIC, "getHwid", "()V", null, null);
+        mv.visitCode();
+        mv.visitLdcInsn("wmic csproduct get uuid");
         mv.visitInsn(POP);
         mv.visitInsn(RETURN);
         mv.visitMaxs(1, 1);

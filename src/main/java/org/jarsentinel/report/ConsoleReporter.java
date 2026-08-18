@@ -3,12 +3,13 @@ package org.jarsentinel.report;
 import org.jarsentinel.core.ScanResult;
 import org.jarsentinel.model.Finding;
 import org.jarsentinel.model.Severity;
+import org.jarsentinel.model.Verdict;
 
 import java.io.PrintStream;
 import java.util.List;
 
 /**
- * Pretty-prints scanning results to the standard console with ANSI formatting and summary blocks.
+ * Pretty-prints scanning results to the standard console with ANSI formatting, verdict blocks, and highlights.
  */
 public class ConsoleReporter {
 
@@ -20,6 +21,8 @@ public class ConsoleReporter {
     private static final String YELLOW = "\u001B[33m";
     private static final String RED = "\u001B[31m";
     private static final String WHITE_BG_RED = "\u001B[41m\u001B[37m";
+    private static final String WHITE_BG_YELLOW = "\u001B[43m\u001B[30m";
+    private static final String WHITE_BG_GREEN = "\u001B[42m\u001B[30m";
 
     private final PrintStream out;
     private final boolean ansiEnabled;
@@ -42,15 +45,18 @@ public class ConsoleReporter {
 
     public void reportSingle(ScanResult result) {
         out.println();
+        out.println(repeat("-", 80));
         out.println(color(BOLD + "Target: " + RESET, "") + result.targetPath());
         out.println(color(DIM + "Classes scanned: " + result.totalClassesScanned() + " | Time: " + result.scanDurationMillis() + "ms" + RESET, ""));
-        out.println(repeat("-", 80));
+
+        // Render Top Verdict Box
+        printVerdictBanner(result);
 
         if (result.findings().isEmpty()) {
-            out.println(color(GREEN + BOLD + " [CLEAN] " + RESET + "No security threats or suspicious bytecode patterns identified.", " [CLEAN] No threats found."));
             return;
         }
 
+        out.println(color(BOLD + "DETAILED FINDINGS (" + result.findings().size() + "):" + RESET, "DETAILED FINDINGS:"));
         int index = 1;
         for (Finding finding : result.findings()) {
             String badge = getSeverityBadge(finding.severity());
@@ -77,6 +83,25 @@ public class ConsoleReporter {
         }
     }
 
+    private void printVerdictBanner(ScanResult result) {
+        Verdict verdict = result.verdict();
+        String verdictColor = verdict.getAnsiColor();
+
+        out.println();
+        out.println(color(BOLD + "ИТОГ / ВЕРДИКТ: " + verdictColor + verdict.getIcon() + " " + verdict.getLabel() + RESET,
+                "ИТОГ / ВЕРДИКТ: [" + verdict.getLabel() + "]"));
+        out.println(color(DIM + "» " + verdict.getSummary() + RESET, "» " + verdict.getSummary()));
+
+        if (!result.highlights().isEmpty()) {
+            out.println();
+            out.println(color(BOLD + "📌 КРАТКАЯ СВОДКА (ЧТО НАЙДЕНО В ФАЙЛЕ):" + RESET, "📌 КРАТКАЯ СВОДКА (ЧТО НАЙДЕНО):"));
+            for (String highlight : result.highlights()) {
+                out.println("   " + highlight);
+            }
+        }
+        out.println();
+    }
+
     private void reportAggregatedSummary(List<ScanResult> results) {
         int totalScanned = results.stream().mapToInt(ScanResult::totalClassesScanned).sum();
         int totalFindings = results.stream().mapToInt(r -> r.findings().size()).sum();
@@ -86,7 +111,7 @@ public class ConsoleReporter {
         long lowCount = results.stream().mapToLong(r -> r.getCount(Severity.LOW)).sum();
 
         out.println(repeat("=", 80));
-        out.println(color(BOLD + "SCAN SUMMARY" + RESET, "SCAN SUMMARY"));
+        out.println(color(BOLD + "ALL TARGETS SCAN SUMMARY" + RESET, "ALL TARGETS SCAN SUMMARY"));
         out.printf(" Total Targets: %d | Total Classes: %d | Total Findings: %d%n", results.size(), totalScanned, totalFindings);
         out.printf(" %sCRITICAL: %d%s | %sHIGH: %d%s | %sMEDIUM: %d%s | %sLOW: %d%s%n",
                 color(RED + BOLD, ""), criticalCount, color(RESET, ""),

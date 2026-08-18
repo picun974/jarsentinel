@@ -3,6 +3,7 @@ package org.jarsentinel.report;
 import org.jarsentinel.core.ScanResult;
 import org.jarsentinel.model.Finding;
 import org.jarsentinel.model.Severity;
+import org.jarsentinel.model.Verdict;
 
 import java.util.List;
 
@@ -30,7 +31,19 @@ public class MarkdownReporter {
         sb.append("| **High Severity Findings** | ⚠️ **").append(highCount).append("** |\n\n");
 
         for (ScanResult r : results) {
+            Verdict v = r.verdict();
             sb.append("## 📦 Target: `").append(r.targetPath().getFileName()).append("`\n\n");
+            sb.append("### **Вердикт:** ").append(v.getIcon()).append(" `").append(v.getLabel()).append("`\n");
+            sb.append("> ").append(v.getSummary()).append("\n\n");
+
+            if (!r.highlights().isEmpty()) {
+                sb.append("#### 📌 Краткая сводка (Key Highlights):\n");
+                for (String h : r.highlights()) {
+                    sb.append("- ").append(h).append("\n");
+                }
+                sb.append("\n");
+            }
+
             sb.append("- **Location**: `").append(r.targetPath()).append("`\n");
             sb.append("- **Classes Scanned**: ").append(r.totalClassesScanned()).append("\n");
             sb.append("- **Scan Duration**: ").append(r.scanDurationMillis()).append(" ms\n\n");

@@ -35,6 +35,7 @@ public class ObfuscatedStringDetector implements Detector {
 
     @Override
     public void scanClass(ClassNode classNode, ScanContext context) {
+        if (org.jarsentinel.core.LibraryWhitelist.isWhitelistedPackage(classNode.name)) return;
         if (classNode.methods == null) return;
 
         for (MethodNode method : classNode.methods) {

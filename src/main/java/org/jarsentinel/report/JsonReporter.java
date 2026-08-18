@@ -7,14 +7,14 @@ import org.jarsentinel.model.Severity;
 import java.util.List;
 
 /**
- * Serializes scan results to JSON without requiring external dependencies.
+ * Serializes scan results to JSON including Verdict and Highlights.
  */
 public class JsonReporter {
 
     public String toJson(List<ScanResult> results) {
         StringBuilder sb = new StringBuilder();
         sb.append("{\n");
-        sb.append("  \"version\": \"1.0.0\",\n");
+        sb.append("  \"version\": \"1.1.0\",\n");
         sb.append("  \"results\": [\n");
 
         for (int i = 0; i < results.size(); i++) {
@@ -23,7 +23,18 @@ public class JsonReporter {
             sb.append("      \"target\": \"").append(escapeJson(r.targetPath().toString())).append("\",\n");
             sb.append("      \"classesScanned\": ").append(r.totalClassesScanned()).append(",\n");
             sb.append("      \"durationMs\": ").append(r.scanDurationMillis()).append(",\n");
+            sb.append("      \"verdict\": \"").append(r.verdict().name()).append("\",\n");
+            sb.append("      \"verdictLabel\": \"").append(escapeJson(r.verdict().getLabel())).append("\",\n");
             sb.append("      \"success\": ").append(r.success()).append(",\n");
+
+            // Highlights
+            sb.append("      \"highlights\": [\n");
+            for (int h = 0; h < r.highlights().size(); h++) {
+                sb.append("        \"").append(escapeJson(r.highlights().get(h))).append("\"")
+                        .append(h < r.highlights().size() - 1 ? "," : "").append("\n");
+            }
+            sb.append("      ],\n");
+
             sb.append("      \"summary\": {\n");
             sb.append("        \"critical\": ").append(r.getCount(Severity.CRITICAL)).append(",\n");
             sb.append("        \"high\": ").append(r.getCount(Severity.HIGH)).append(",\n");
